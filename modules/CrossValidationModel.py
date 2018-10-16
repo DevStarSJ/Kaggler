@@ -5,11 +5,11 @@ import pandas as pd
 class CrossValidationModel:
     def __init__(self):
         self.n_splits = None
-        self.train_Xs = []
-        self.train_ys = []
-        self.test_Xs = []
-        self.test_ys = []
-        self.test_predictions = []
+        self.cv_train_Xs = []
+        self.cv_train_ys = []
+        self.cv_test_Xs = []
+        self.cv_test_ys = []
+        self.cv_test_predictions = []
         self.models = []
         #self.score = []
         pass
@@ -37,40 +37,32 @@ class CrossValidationModel:
             test_y = test_set[target_col]
             test_X = test_set.drop(columns=target_col)
             
-            cv_model = model.fit(train_X, train_y)
-            test_predict = model.predict(test_X)
+            cv_model = deepcopy(model)
+            cv_model.fit(train_X, train_y)
             
-            self.train_Xs.append(train_X)
-            self.train_ys.append(train_y)
-            self.test_Xs.append(test_X)
-            self.test_ys.append(test_y)
-            self.test_predictions.append(test_predict)
-            self.models.append(deepcopy(cv_model))
+            test_predict = cv_model.predict(test_X)
+            
+            self.cv_train_Xs.append(train_X)
+            self.cv_train_ys.append(train_y)
+            self.cv_test_Xs.append(test_X)
+            self.cv_test_ys.append(test_y)
+            self.cv_test_predictions.append(test_predict)
+            self.models.append(cv_model)
             
     def score(self, metric):
-        return [metric(self.test_predictions[i], self.test_ys[i]) for i in range(self.n_splits)]
+        return [metric(self.cv_test_predictions[i], self.cv_test_ys[i]) for i in range(self.n_splits)]
     
     def predict(self, data):
         return [self.models[i].predict(data) for i in range(self.n_splits)]
-
-# train_set and test_set is DataFrame of Kaggle Titanic Dataset.
-# This code is example of CrossValidationModel Usage.    
     
-# if __name__ == '__main__':
-#     from sklearn.ensemble import RandomForestClassifier
-#     from sklearn.metrics import accuracy_score, roc_auc_score
+    def predict_stack(self, data):
+        predicts = self.predict(data)
+        return pd.DataFrame({str(i) : v for i, v in enumerate(predicts)})
     
-#     cvm = CrossValidationModel()
-#     model = RandomForestClassifier(n_estimators=13)
-#     n_splits = 10
-#     target_col = 'Survived'
-    
-#     cvm.fit(model, train_set, n_splits, 'Survived')
-    
-#     print(cvm.score(accuracy_score))
-#     print(cvm.score(roc_auc_score))
-    
-#     predicts = cvm.predict(test_set)
-    
-#     for i in range(n_splits):
-#         print(predicts[i].sum())
+    def predict_average(self, data):
+        predicts = self.predict(data)
+        
+        len_cv = len(predicts)
+        len_data = len(predicts[0])
+            
+        return [sum([predicts[j][i] for j in range(len_cv)]) / len_cv for i in range(len_data)]
